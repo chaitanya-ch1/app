@@ -3,9 +3,9 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Toaster, toast } from "sonner";
-import Plotly from "plotly.js-dist-min";
-import createPlotlyComponent from "react-plotly.js/factory";
-const Plot = createPlotlyComponent(Plotly);
+import {
+  LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
+} from "recharts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -354,6 +354,26 @@ const Navbar = () => {
   );
 };
 
+// Chart colors
+const COLORS = ["#0d9488", "#3b82f6", "#8b5cf6", "#f59e0b", "#ec4899"];
+
+// Custom Tooltip
+const CustomTooltip = ({ active, payload, label, valuePrefix = "" }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white px-3 py-2 rounded-lg shadow-lg border border-slate-200">
+        <p className="text-xs text-slate-500 mb-1">{label}</p>
+        {payload.map((entry, index) => (
+          <p key={index} className="text-sm font-semibold" style={{ color: entry.color }}>
+            {entry.name}: {valuePrefix}{typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
 // Dashboard Page
 const DashboardPage = () => {
   const [metrics, setMetrics] = useState(null);
@@ -429,6 +449,20 @@ const DashboardPage = () => {
     amber: "bg-amber-50 text-amber-600",
   };
 
+  // Transform trends data for Recharts
+  const chartData = trends?.dates?.map((date, idx) => ({
+    date: date.slice(5),  // Remove year for cleaner display
+    revenue: trends.revenue[idx],
+    units: trends.units[idx],
+  })) || [];
+
+  // Transform category data for pie chart
+  const pieData = metrics?.categories?.map((cat) => ({
+    name: cat.name,
+    value: cat.revenue,
+    units: cat.units,
+  })) || [];
+
   return (
     <div className="space-y-6" data-testid="dashboard-page">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -475,32 +509,21 @@ const DashboardPage = () => {
             <CardDescription>Daily revenue over the past 60 days</CardDescription>
           </CardHeader>
           <CardContent>
-            {trends && (
-              <Plot
-                data={[
-                  {
-                    x: trends.dates,
-                    y: trends.revenue,
-                    type: "scatter",
-                    mode: "lines",
-                    fill: "tozeroy",
-                    line: { color: "#0d9488", width: 2 },
-                    fillcolor: "rgba(13, 148, 136, 0.1)",
-                  },
-                ]}
-                layout={{
-                  margin: { t: 10, r: 20, l: 50, b: 40 },
-                  height: 280,
-                  xaxis: { showgrid: false, tickfont: { size: 11, color: "#64748b" } },
-                  yaxis: { showgrid: true, gridcolor: "#f1f5f9", tickfont: { size: 11, color: "#64748b" }, tickprefix: "$" },
-                  paper_bgcolor: "transparent",
-                  plot_bgcolor: "transparent",
-                  hovermode: "x unified",
-                }}
-                config={{ displayModeBar: false, responsive: true }}
-                style={{ width: "100%" }}
-              />
-            )}
+            <ResponsiveContainer width="100%" height={280}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#0d9488" stopOpacity={0.2}/>
+                    <stop offset="95%" stopColor="#0d9488" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${(v/1000).toFixed(0)}k`} />
+                <Tooltip content={<CustomTooltip valuePrefix="$" />} />
+                <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#0d9488" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" />
+              </AreaChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
 
@@ -537,46 +560,39 @@ const DashboardPage = () => {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {metrics && (
-              <>
-                <Plot
-                  data={[
-                    {
-                      values: metrics.categories.map((c) => c.revenue),
-                      labels: metrics.categories.map((c) => c.name),
-                      type: "pie",
-                      hole: 0.5,
-                      marker: {
-                        colors: ["#0d9488", "#3b82f6", "#8b5cf6", "#f59e0b", "#ec4899"],
-                      },
-                      textinfo: "percent",
-                      textfont: { size: 12 },
-                    },
-                  ]}
-                  layout={{
-                    margin: { t: 20, r: 20, l: 20, b: 20 },
-                    height: 250,
-                    showlegend: true,
-                    legend: { orientation: "h", y: -0.1, font: { size: 11 } },
-                    paper_bgcolor: "transparent",
-                    plot_bgcolor: "transparent",
-                  }}
-                  config={{ displayModeBar: false, responsive: true }}
-                  style={{ width: "100%" }}
-                />
-                <div className="space-y-3">
-                  {metrics.categories.map((cat) => (
-                    <div key={cat.name} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                      <div>
-                        <p className="font-medium text-slate-900">{cat.name}</p>
-                        <p className="text-xs text-slate-500">{cat.units.toLocaleString()} units sold</p>
-                      </div>
-                      <p className="font-semibold text-teal-600">${cat.revenue.toLocaleString()}</p>
-                    </div>
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={90}
+                  paddingAngle={3}
+                  dataKey="value"
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip valuePrefix="$" />} />
+                <Legend iconType="circle" iconSize={8} formatter={(value) => <span className="text-slate-600 text-sm">{value}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="space-y-3">
+              {metrics?.categories?.map((cat, idx) => (
+                <div key={cat.name} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                    <div>
+                      <p className="font-medium text-slate-900">{cat.name}</p>
+                      <p className="text-xs text-slate-500">{cat.units.toLocaleString()} units sold</p>
+                    </div>
+                  </div>
+                  <p className="font-semibold text-teal-600">${cat.revenue.toLocaleString()}</p>
                 </div>
-              </>
-            )}
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -611,7 +627,7 @@ const ForecastPage = () => {
   const fetchForecast = async () => {
     setLoading(true);
     try {
-      const params = selectedDrug ? { drug: selectedDrug } : {};
+      const params = selectedDrug && selectedDrug !== "all" ? { drug: selectedDrug } : {};
       const res = await axios.get(`${API}/predict`, { params });
       setForecast(res.data);
     } catch (err) {
@@ -620,6 +636,29 @@ const ForecastPage = () => {
       setLoading(false);
     }
   };
+
+  // Transform forecast data for chart
+  const chartData = [];
+  if (forecast) {
+    // Historical data
+    forecast.historical_dates?.forEach((date, idx) => {
+      chartData.push({
+        date: date.slice(5),
+        actual: forecast.historical_values[idx],
+        type: "historical"
+      });
+    });
+    // Forecast data
+    forecast.forecast_dates?.forEach((date, idx) => {
+      chartData.push({
+        date: date.slice(5),
+        predicted: forecast.predicted[idx],
+        upper: forecast.confidence_interval?.upper[idx],
+        lower: forecast.confidence_interval?.lower[idx],
+        type: "forecast"
+      });
+    });
+  }
 
   return (
     <div className="space-y-6" data-testid="forecast-page">
@@ -670,57 +709,19 @@ const ForecastPage = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <Plot
-                data={[
-                  {
-                    x: forecast.historical_dates,
-                    y: forecast.historical_values,
-                    type: "scatter",
-                    mode: "lines",
-                    name: "Actual",
-                    line: { color: "#0d9488", width: 2 },
-                  },
-                  {
-                    x: forecast.forecast_dates,
-                    y: forecast.predicted,
-                    type: "scatter",
-                    mode: "lines",
-                    name: "Predicted",
-                    line: { color: "#3b82f6", width: 2, dash: "dot" },
-                  },
-                  {
-                    x: [...forecast.forecast_dates, ...forecast.forecast_dates.slice().reverse()],
-                    y: [...forecast.confidence_interval.upper, ...forecast.confidence_interval.lower.slice().reverse()],
-                    fill: "toself",
-                    fillcolor: "rgba(59, 130, 246, 0.1)",
-                    line: { color: "transparent" },
-                    name: "Confidence Interval",
-                    showlegend: true,
-                    type: "scatter",
-                  },
-                ]}
-                layout={{
-                  margin: { t: 20, r: 40, l: 60, b: 50 },
-                  height: 400,
-                  xaxis: { 
-                    showgrid: false, 
-                    tickfont: { size: 11, color: "#64748b" },
-                    title: { text: "Date", font: { size: 12, color: "#64748b" } }
-                  },
-                  yaxis: { 
-                    showgrid: true, 
-                    gridcolor: "#f1f5f9", 
-                    tickfont: { size: 11, color: "#64748b" },
-                    title: { text: "Units", font: { size: 12, color: "#64748b" } }
-                  },
-                  paper_bgcolor: "transparent",
-                  plot_bgcolor: "transparent",
-                  legend: { orientation: "h", y: 1.1, font: { size: 12 } },
-                  hovermode: "x unified",
-                }}
-                config={{ displayModeBar: false, responsive: true }}
-                style={{ width: "100%" }}
-              />
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend iconType="circle" iconSize={8} />
+                  <Line type="monotone" dataKey="actual" name="Actual" stroke="#0d9488" strokeWidth={2} dot={false} connectNulls />
+                  <Line type="monotone" dataKey="predicted" name="Predicted" stroke="#3b82f6" strokeWidth={2} strokeDasharray="5 5" dot={false} connectNulls />
+                  <Line type="monotone" dataKey="upper" name="Upper Bound" stroke="#94a3b8" strokeWidth={1} strokeDasharray="2 2" dot={false} connectNulls />
+                  <Line type="monotone" dataKey="lower" name="Lower Bound" stroke="#94a3b8" strokeWidth={1} strokeDasharray="2 2" dot={false} connectNulls />
+                </LineChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
 
