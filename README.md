@@ -108,9 +108,9 @@ yarn start
 3. Deploy
 
 ### Render (Backend)
-1. Create a new Web Service
-2. Set environment variables
-3. Use `uvicorn server:app --host 0.0.0.0 --port $PORT` as start command
+1. Create a new Web Service.
+2. Set environment variables.
+3. Use `uvicorn server:app --host 0.0.0.0 --port $PORT` as start command.
 
 ## License
 
